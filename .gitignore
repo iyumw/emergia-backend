@@ -1,0 +1,29 @@
+# Ambientes Virtuais (Obrigatório ignorar)
+.venv/
+venv/
+env/
+ENV/
+
+# Python (Arquivos compilados e cache)
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.pydantic_debug/
+
+# Distribuição / Pacotes
+dist/
+build/
+*.egg-info/
+
+# Variáveis de ambiente e segredos
+.env
+.flaskenv
+
+# IDEs (Opcional, mas recomendado)
+.vscode/
+.idea/
+
+# Sistema Operacional
+Thumbs.db
+.DS_Store

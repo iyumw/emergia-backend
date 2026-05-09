@@ -58,23 +58,93 @@ Open http://localhost:8000/docs for interactive Swagger documentation.
 
 ## Example payload for `/api/v1/calculate`
 
+# Motor de Cálculo Emergético (backend)
+
+Projeto Python com FastAPI que implementa um motor de cálculo emergético baseado nas regras de H.T. Odum.
+
+Este repositório contém a API que recebe a descrição de um sistema (fontes, processos e fluxos) e retorna a "emergia" distribuída entre os nós seguindo as quatro regras de álgebra emergética.
+
+## Visão geral da estrutura
+
+```
+.
+├── app/                        # Código da aplicação (API, domínio e infra)
+│   ├── main.py                 # Ponto de entrada (FastAPI)
+│   ├── application/            # Casos de uso / orquestração
+│   ├── domain/                 # Regras de negócio (modelos e álgebra)
+│   └── infrastructure/         # Adaptadores e rotas da API
+├── tests/                      # Testes automatizados (pytest)
+└── requirements.txt            # Dependências do projeto
+```
+
+## Conteúdo principal
+
+- `app/main.py`: cria a instância FastAPI, configura CORS e registra as rotas em `app.infrastructure.api.routes`.
+- `app/application/` e `app/domain/`: implementam a lógica de cálculo emergético e modelos Pydantic usados nos testes.
+- `app/infrastructure/adapters/importador.py`: funções para parsear CSVs (usadas nos testes de integração).
+
+## Requisitos
+
+Recomendado: Python 3.10+.
+
+As dependências estão listadas em `requirements.txt`.
+
+## Instalação e execução (Windows)
+
+Abra um terminal PowerShell e execute:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+# Iniciar a API (a partir da raiz do projeto)
+uvicorn app.main:app --reload --port 8000
+```
+
+Observação: se estiver usando cmd.exe, ative o venv com `.\.venv\Scripts\activate.bat`.
+
+Após iniciar, a documentação interativa estará em: http://localhost:8000/docs
+
+## Endpoints (resumo)
+
+- GET  /                — Health check
+- POST /api/v1/calculate — Recebe JSON com fontes/processos/fluxos e retorna o cálculo emergético
+- POST /api/v1/import    — Importa dados via CSV (nodes, sources, edges)
+- POST /api/v1/export    — (planejado) exporta resultados como arquivo
+
+As rotas ficam registradas com prefixo `/api` (veja `app/main.py`). A documentação Swagger mostra os detalhes de payload.
+
+## Executar testes
+
+Os testes usam `pytest`. Execute no PowerShell:
+
+```powershell
+# Ative o ambiente virtual (veja seção anterior)
+pip install -r requirements.txt
+pytest tests/ -v
+```
+
+## Exemplos de payload
+
+Exemplo de JSON para `/api/v1/calculate` (simplificado):
+
 ```json
 {
   "sources": [
-    { "id": "SRC_SUN", "name": "Solar Energy", "uev": 1.0, "category": "renewable", "amount": 3.5e14 }
+    { "id": "SRC_SUN", "label": "Sol", "uev": 1.0, "categoria": "renovavel", "quantidade": 3500000.0 }
   ],
   "processes": [
-    { "id": "P1", "name": "Cultivation" },
-    { "id": "P2", "name": "Harvest" }
+    { "id": "P1", "label": "Plantacao" },
+    { "id": "P2", "label": "Colheita" }
   ],
   "flows": [
-    { "source_id": "SRC_SUN", "target_id": "P1", "amount": 3.5e14, "unit": "sej" },
-    { "source_id": "P1",      "target_id": "P2", "amount": 1000,   "unit": "kg"  }
+    { "origem": "SRC_SUN", "destino": "P1", "quantidade": 3500000.0 },
+    { "origem": "P1", "destino": "P2", "quantidade": 1000.0 }
   ]
 }
 ```
 
-## Angular integration
+## Observações de segurança e produção
 
-The API is already configured with CORS for `http://localhost:4200`. (still has to be deployed)
-Point your Angular `HttpClient` to `http://localhost:8000/api/v1`.
+- Em desenvolvimento, o CORS permite `http://localhost:4200` e `http://localhost:3000` por padrão. Em produção, defina a variável de ambiente `ALLOWED_ORIGINS` com as URLs permitidas e evite `"*"`.
+- Atualmente os dados são processados apenas em memória; não há persistência nem envio para serviços externos.

@@ -1,31 +1,35 @@
 """
-Rotas da API REST do motor de cálculo emergético.
-EmergyCalculator é injetado via FastAPI Depends (inversão de dependência).
+REST API routes for the emergy calculation engine.
+EmergyCalculator is injected via FastAPI Depends (dependency inversion).
 """
 
+import base64
 import json
 import io
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from typing import Annotated, List, Any, Optional
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Query
 from fastapi.responses import StreamingResponse
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+from reportlab.lib.pagesizes import A4
 
 from app.domain.entities import GraphData
 from app.application.emergy_calculator import EmergyCalculator
-from app.infrastructure.adapters.importador import build_graph_data_from_csvs
-from app.domain.glossario import get_glossario
+from app.infrastructure.adapters.importador import build_graph_data_from_uploads
+from app.domain.glossary import get_glossary
+from app.domain.graph_store import save_graph, get_graph
 
 router = APIRouter()
 
 
-# ── Injeção de dependência ────────────────────────────────────────────────────
+# ── Dependency injection ──────────────────────────────────────────────────────
 
 def get_calculator() -> EmergyCalculator:
-    """Factory para injeção de EmergyCalculator via Depends."""
+    """Factory for EmergyCalculator injection via Depends."""
     return EmergyCalculator()
 
 
-# ── Calcular a partir de JSON ─────────────────────────────────────────────────
+# ── Calculate from JSON ───────────────────────────────────────────────────────
 
 
 @router.post("/calculate")
@@ -34,131 +38,201 @@ async def calculate_emergy(
     calculator: Annotated[EmergyCalculator, Depends(get_calculator)],
 ):
     """
-    Recebe nós e arestas como JSON e retorna a emergia total.
+    Receives nodes and edges as JSON and returns the total emergy.
 
-    Os IDs dos nós são **opcionais**: se omitidos, são gerados automaticamente.
+    Node `id` is **optional** — auto-generated when omitted.
 
-    Payload de exemplo (IDs explícitos):
+    Example payload:
 
         {
-          "Nos": [
+          "nodes": [
             {
-              "id": "SOL_01",
-              "label": "Energia Solar",
-              "tipo": "source",
+              "id": "SUN_01",
+              "label": "Solar Energy",
+              "type": "source",
               "uev": 1.0,
-              "categoria": "renovável",
-              "quantidade": 3500000.0,
-              "is_multi_output": false
+              "category": "renewable",
+              "amount": 3500000.0
             },
-            { 
-              "id": "P1", 
-              "label": "Plantação", 
-              "tipo": "process",
-              "is_multi_output": false 
-            },
-            { 
-              "id": "P2", 
-              "label": "Colheita",  
-              "tipo": "process",
-              "is_multi_output": false 
-            }
+            { "id": "P1", "label": "Plantation", "type": "process" },
+            { "id": "P2", "label": "Harvest",    "type": "process" }
           ],
-          "Arestas": [
-            { 
-              "id": "E1",
-              "origem": "SOL_01", 
-              "destino": "P1", 
-              "quantidade": 3500000.0,
-              "unidade": "sej" 
-            },
-            { 
-              "id": "E2",
-              "origem": "P1",   
-              "destino": "P2", 
-              "quantidade": 1000.0,
-              "unidade": "kg"
-            }
+          "edges": [
+            { "source": "SUN_01", "target": "P1", "amount": 3500000.0, "unit": "sej" },
+            { "source": "P1",     "target": "P2", "amount": 1000.0,    "unit": "kg"  }
           ]
         }
     """
     try:
         result = calculator.calculate(data)
         return result
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro no cálculo: {str(e)}")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Calculation error: {exc}")
 
 
-# ── Importar a partir de arquivos CSV ─────────────────────────────────────────
+# ── Import from uploaded files ─────────────────────────────────────────────
 
 
-@router.post("/import")
-async def import_csvs(
-    nodes: Annotated[
-        UploadFile, File(description="nodes.csv  →  label (obrig.), id e is_multi_output (opcionais)")
-    ],
-    sources: Annotated[
-        UploadFile, File(description="sources.csv  →  label, uev, categoria (obrig.), id e quantidade (opcionais)")
-    ],
-    edges: Annotated[
-        UploadFile, File(description="edges.csv  →  origem, destino, quantidade (obrig.), id, unidade e tipo (opcionais)")
-    ],
-    calculator: Annotated[EmergyCalculator, Depends(get_calculator)],
+@router.post("/import", status_code=status.HTTP_201_CREATED)
+async def import_data(
+    files: List[UploadFile] = File(
+        description="Envie 1 arquivo (.json, .xlsx, .zip, CSV híbrido) ou 3 CSVs separados (nodes, sources, edges)."
+    ),
+    calculator: Annotated[EmergyCalculator, Depends(get_calculator)] = None,
 ):
     """
-    Recebe três arquivos CSV e retorna o resultado do cálculo emergético.
-
-    Colunas:
-      nodes.csv   — label (obrig.), id (opcional), is_multi_output (opcional)
-      sources.csv — label, uev, categoria (obrig.), id (opcional), quantidade (opcional)
-      edges.csv   — origem, destino, quantidade (obrig.), id (opcional), unidade, tipo
+    Endpoint polimórfico de importação.
+    Aceita diferentes estruturas e delega para o parser correto de forma invisível para o usuário.
     """
+    if not files:
+        raise HTTPException(status_code=400, detail="Nenhum arquivo enviado.")
+
+    # 1. Lê os bytes de todos os arquivos enviados
+    files_data = {}
+    for file in files:
+        files_data[file.filename.lower()] = await file.read()
+
+    # 2. Processa, independente do formato, retornando as entidades de domínio
     try:
-        nodes_csv = (await nodes.read()).decode("utf-8")
-        sources_csv = (await sources.read()).decode("utf-8")
-        edges_csv = (await edges.read()).decode("utf-8")
+        import_result = build_graph_data_from_uploads(files_data)
+        calc_result   = calculator.calculate(import_result.graph_data)
+    except (ValueError, UnicodeDecodeError, KeyError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Erro durante a importação: {exc}")
 
-        data = build_graph_data_from_csvs(nodes_csv, sources_csv, edges_csv)
-        result = calculator.calculate(data)
-        return result
-    except (ValueError, UnicodeDecodeError) as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro na importação: {str(e)}")
+    # 3. Salva a sessão no formato padronizado
+    nodes_payload = [node.model_dump() for node in import_result.nodes]
+    edges_payload = [edge.model_dump() for edge in import_result.edges]
 
+    graph_id = save_graph(
+        nodes=nodes_payload,
+        edges=edges_payload,
+        result=calc_result,
+    )
 
-# ── Exportar resultado como JSON para download ────────────────────────────────
-
-
-@router.post("/export")
-async def export_result(
-    data: GraphData,
-    calculator: Annotated[EmergyCalculator, Depends(get_calculator)],
-):
-    """Calcula e retorna o resultado como arquivo JSON para download."""
-    try:
-        result = calculator.calculate(data)
-        content = json.dumps(result, ensure_ascii=False, indent=2)
-        return StreamingResponse(
-            io.BytesIO(content.encode("utf-8")),
-            media_type="application/json",
-            headers={"Content-Disposition": "attachment; filename=emergy_result.json"},
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro na exportação: {str(e)}")
+    return {
+        "graph_id": graph_id,
+        "expires_in_seconds": 3600,
+    }
 
 
-# ── Glossário de conceitos emergéticos ───────────────────────────────────────
+# ── Retrieve stored graph by graph ID ───────────────────────────────────────
 
 
-@router.get("/glossario")
-async def glossario():
+@router.get("/graph/{graph_id}")
+async def get_graph_by_id(graph_id: str):
     """
-    Retorna o glossário de conceitos emergéticos e da metodologia utilizada.
-    Atende ao RFO 2 do planejamento do sistema.
+    Retorna o grafo completo e os resultados dos cálculos para um ID específico.
+    Grafos expiram após 1 hora (configurável) e são removidos automaticamente do armazenamento em memória.
+
+    ## Estrutura do Retorno:
+
+    * **graph_id**: Identificador único da análise.
+    * **created_at**: Timestamp de criação
+    * **nodes**: Lista completa dos nós com todos os metadados (UEV, Categoria, etc.). **Use esta lista para tabelas ou formulários de edição.**
+    * **edges**: Lista de todas as arestas.
+    * **result**: Objeto contendo o processamento final:
+        * **total_emergy**: Valor numérico final da emergia do sistema.
+        * **unit**: Unidade de medida (padrão: sej).
+        * **stats**: Quantidade de nós/arestas e tempo de processamento em ms.
     """
-    return get_glossario()
+    graph = get_graph(graph_id)
+    if not graph:
+        raise HTTPException(status_code=404, detail="Grafo não encontrado.")
+    return graph
+
+
+# ── Export result as downloadable JSON ────────────────────────────────────────
+
+
+@router.post("/export/pdf")
+async def export_pdf(graph_id: str, config: dict[str, Any] = {}):
+    """
+    Gera um PDF customizável incluindo a captura visual do grafo.
+
+    ## Parâmetros:
+    - **graph_id**: ID do grafo para referência no relatório.
+    - **config**: JSON com dados de customização.
+
+    ## Exemplo de Request Body (config):
+    ```json
+    {
+      "title": "Análise de Sistema de Silagem",
+      "graph_image": "data:image/png;base64,iVBORw0KGgoAAAANSUh...",
+      "show_stats": true
+    }
+    ```
+
+    ## Notas para o Front-end (Cytoscape):
+    1. Gere a imagem com `cy.png({ output: 'base64' })`.
+    2. Envie a string resultante no campo `graph_image`.
+    3. Trate a resposta desta rota como um **Blob** para disparar o download.
+    """
+    
+    buffer = io.BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    largura, altura = A4
+
+    # --- 1. Título e Identificação ---
+    p.setFont("Helvetica-Bold", 16)
+    p.drawString(50, altura - 50, config.get("title", "Relatório de Emergia"))
+    
+    p.setFont("Helvetica", 10)
+    p.drawString(50, altura - 70, f"ID do Grafo: {graph_id}")
+    p.drawString(50, altura - 85, "Status: Calculado com sucesso")
+
+    # --- 2. Processamento da Imagem Base64 ---
+    graph_image_base64 = config.get("graph_image")
+    
+    if graph_image_base64:
+        try:
+            # Limpa o prefixo do data URI se existir
+            if "," in graph_image_base64:
+                encoded = graph_image_base64.split(",", 1)[1]
+            else:
+                encoded = graph_image_base64
+            
+            # Converte de string Base64 para Bytes
+            image_data = base64.b64decode(encoded)
+            img_buffer = io.BytesIO(image_data)
+            img_reader = ImageReader(img_buffer)
+            
+            # Desenha a imagem no PDF (x, y, largura, altura)
+            # preserveAspectRatio garante que o grafo não fique esticado
+            p.drawImage(img_reader, 50, altura - 450, width=500, height=350, 
+                        preserveAspectRatio=True, mask='auto')
+            
+        except Exception as e:
+            p.setFont("Helvetica-Oblique", 8)
+            p.setFillColorRGB(0.7, 0, 0) # Vermelho para erro
+            p.drawString(50, altura - 100, f"Erro ao processar imagem: {str(e)}")
+            p.setFillColorRGB(0, 0, 0)
+
+    # --- 3. Finalização ---
+    p.showPage()
+    p.save()
+
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer, 
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=relatorio_{graph_id}.pdf",
+            "Access-Control-Expose-Headers": "Content-Disposition"
+        }
+    )
+
+
+# ── Glossary ──────────────────────────────────────────────────────────────────
+
+
+@router.get("/glossary")
+async def glossary():
+    """
+    Returns the emergy concepts glossary and the methodology reference.
+    Fulfils optional requirement RFO 2.
+    """
+    return get_glossary()

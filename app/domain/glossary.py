@@ -189,7 +189,7 @@ _GLOSSARIO: list[Termo] = [
 ]
 
 
-def get_glossario() -> dict:
+def get_glossary() -> dict:
     """
     Retorna o glossário completo organizado por categoria.
     """

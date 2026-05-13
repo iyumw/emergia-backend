@@ -11,62 +11,64 @@ class EmergyCalculator:
         graph = nx.DiGraph()
         source_emergy: dict[str, float] = {}
 
-        allowed_ids = {node.id for node in data.Nos}
+        allowed_ids = {node.id for node in data.nodes}
 
-        for node in data.Nos:
+        for node in data.nodes:
             graph.add_node(
                 node.id,
                 label=node.label,
-                tipo=node.tipo,
+                type=node.type,
                 is_multi_output=node.is_multi_output,
             )
-            if node.tipo == "source":
-                source_emergy[node.id] = (node.uev or 0) * (node.quantidade or 0)
+            if node.type == "source":
+                source_emergy[node.id] = (node.uev or 0.0) * (node.amount or 0.0)
 
-        for edge in data.Arestas:
-            if edge.origem not in allowed_ids:
+        for edge in data.edges:
+            if edge.source not in allowed_ids:
                 raise ValueError(
-                    f"Aresta: nó de origem '{edge.origem}' não encontrado na lista de nós."
+                    f"Edge: source node '{edge.source}' not found in node list."
                 )
-            if edge.destino not in allowed_ids:
+            if edge.target not in allowed_ids:
                 raise ValueError(
-                    f"Aresta: nó de destino '{edge.destino}' não encontrado na lista de nós."
+                    f"Edge: target node '{edge.target}' not found in node list."
                 )
             eid = edge.id if getattr(edge, "id", None) else str(uuid.uuid4())[:8]
-            graph.add_edge(edge.origem, edge.destino, quantidade=edge.quantidade, id=eid)
+            graph.add_edge(
+                edge.source,
+                edge.target,
+                amount=edge.amount,
+                id=eid,
+            )
 
         return graph, source_emergy
 
     def _validate(self, graph: nx.DiGraph) -> list[str]:
-        """Valida a integridade do grafo antes do cálculo."""
         errors = []
         if graph.number_of_nodes() == 0:
-            errors.append("Grafo vazio: não há nós.")
-
+            errors.append("Empty graph: no nodes found.")
         node_ids = set(graph.nodes)
         for u, v in graph.edges:
             if u not in node_ids:
-                errors.append(f"Aresta: origem '{u}' não pertence ao conjunto de nós.")
+                errors.append(f"Edge: source '{u}' is not in the node set.")
             if v not in node_ids:
-                errors.append(f"Aresta: destino '{v}' não pertence ao conjunto de nós.")
+                errors.append(f"Edge: target '{v}' is not in the node set.")
         return errors
 
     def calculate(self, data: GraphData) -> dict:
-        """Executa o cálculo de emergia aplicando as 4 regras de Odum."""
+        """Runs the emergy calculation applying Odum's 4 rules."""
         start_time = time.perf_counter()
 
         graph, source_emergy = self._build_graph(data)
 
         errors = self._validate(graph)
         if errors:
-            raise ValueError(f"Grafo inválido: {'; '.join(errors)}")
+            raise ValueError(f"Invalid graph: {'; '.join(errors)}")
 
         algebra = EmergyAlgebra(graph, source_emergy)
 
         emergy_by_node: dict[str, float] = {}
         for node_id in graph.nodes:
-            node_data = graph.nodes[node_id]
-            if node_data.get("tipo") == "process":
+            if graph.nodes[node_id].get("type") == "process":
                 emergy_by_node[node_id] = algebra.calculate(node_id)
 
         leaf_nodes = [n for n in emergy_by_node if graph.out_degree(n) == 0]
@@ -74,26 +76,25 @@ class EmergyCalculator:
             sum(emergy_by_node[n] for n in leaf_nodes) if leaf_nodes else 0.0
         )
 
+        energy_intensity = []
+        for nid, valor in emergy_by_node.items():
+            percent = (valor / total_emergy * 100) if total_emergy > 0 else 0
+            energy_intensity.append({
+                "id": nid,
+                "label": graph.nodes[nid].get("label", nid),
+                "percentage_value": f"{round(percent, 2)}%"
+            })
+        
         end_time = time.perf_counter()
 
         return {
             "total_emergy": total_emergy,
             "unit": "sej",
+            "energy_intensity": energy_intensity,
             "stats": {
+                "paths_analyzed": algebra.paths_count,
                 "nodes_count": graph.number_of_nodes(),
                 "edges_count": graph.number_of_edges(),
                 "processing_time_ms": round((end_time - start_time) * 1000, 2),
-            },
-            "contributions": [
-                {
-                    "id": nid,
-                    "label": graph.nodes[nid].get("label", nid),
-                    "value": val,
-                    "percent": (
-                        round((val / total_emergy) * 100, 2) if total_emergy > 0 else 0
-                    ),
-                }
-                for nid, val in emergy_by_node.items()
-            ],
-            "graph": nx.node_link_data(graph),
+            }
         }

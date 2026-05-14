@@ -70,8 +70,8 @@ def _validate_headers(headers: list[str], required: list[str], section: str) -> 
     missing = [h for h in required if h not in headers]
     if missing:
         raise ValueError(
-            f"Section '{section}' is missing required columns: {missing}. "
-            f"Found: {headers}"
+            f"Na seção '{section}' está faltando as colunas obrigatórias: {missing}. "
+            f"As colunas encontradas foram: {headers}"
         )
 
 
@@ -100,7 +100,7 @@ def _split_sections(content: str) -> dict[str, str]:
 
     if not sections:
         raise ValueError(
-            "No valid section found. The file must contain at least one of: "
+            f"Nenhuma seção válida encontrada. O arquivo deve conter pelo menos uma das seguintes seções: "
             f"{sorted(_KNOWN_SECTIONS)}"
         )
 
@@ -153,7 +153,7 @@ def _parse_sources_section(content: str) -> list[Node]:
             amount = float(row.get("amount", "1").strip() or "1")
         except ValueError as exc:
             raise ValueError(
-                f"Invalid numeric value in [sources] row {dict(row)}: {exc}"
+                f"Valor numérico inválido na seção '{_SECTION_SOURCES}' na linha {dict(row)}: {exc}"
             ) from exc
 
         node_id = row.get("id", "").strip() or _generate_id()
@@ -189,7 +189,7 @@ def _parse_edges_section(content: str) -> list[Edge]:
             amount = float(row["amount"].strip())
         except ValueError as exc:
             raise ValueError(
-                f"Invalid amount in [edges] row {dict(row)}: {exc}"
+                f"Valor numérico inválido na seção '{_SECTION_EDGES}' na linha {dict(row)}: {exc}"
             ) from exc
 
         edge_id = row.get("id", "").strip() or _generate_id()
@@ -248,7 +248,7 @@ def build_graph_data_from_single_csv(raw_bytes: bytes) -> ImportResult:
 
     if not all_nodes:
         raise ValueError(
-            "The file must contain at least one [nodes] or [sources] section with valid rows."
+            "O arquivo deve conter pelo menos um nó (process ou source) para formar um grafo válido."
         )
 
     edges = (
@@ -284,7 +284,7 @@ def _combine_into_result(nodes_csv: str, sources_csv: str, edges_csv: str) -> Im
     edges = _parse_edges_section(edges_csv) if edges_csv.strip() else []
 
     if not all_nodes:
-        raise ValueError("O grafo precisa de pelo menos um nó (process ou source).")
+        raise ValueError("O grafo precisa de pelo menos um nó (process ou source) para formar um grafo válido.")
 
     graph_data = GraphData(nodes=all_nodes, edges=edges)
     return ImportResult(graph_data=graph_data, nodes=all_nodes, edges=edges)

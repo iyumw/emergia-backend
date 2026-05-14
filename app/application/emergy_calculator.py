@@ -27,11 +27,11 @@ class EmergyCalculator:
         for edge in data.edges:
             if edge.source not in allowed_ids:
                 raise NodeNotFoundError(
-                    f"Edge: source node '{edge.source}' not found in node list."
+                    f"A conexão tenta sair de '{edge.source}', mas esse item não existe na lista de nós."
                 )
             if edge.target not in allowed_ids:
                 raise NodeNotFoundError(
-                    f"Edge: target node '{edge.target}' not found in node list."
+                    f"A conexão tenta entrar em '{edge.target}', mas esse item não existe na lista de nós."
                 )
             eid = edge.id if getattr(edge, "id", None) else str(uuid.uuid4())[:8]
             graph.add_edge(
@@ -46,13 +46,13 @@ class EmergyCalculator:
     def _validate(self, graph: nx.DiGraph) -> list[str]:
         errors = []
         if graph.number_of_nodes() == 0:
-            errors.append("Empty graph: no nodes found.")
+            errors.append("Grafo vazio: nenhum item (nó) foi fornecido.")
         node_ids = set(graph.nodes)
         for u, v in graph.edges:
             if u not in node_ids:
-                errors.append(f"Edge: source '{u}' is not in the node set.")
+                errors.append(f"A conexão tenta sair de '{u}', mas esse item não existe na lista de nós.")
             if v not in node_ids:
-                errors.append(f"Edge: target '{v}' is not in the node set.")
+                errors.append(f"A conexão tenta entrar em '{v}', mas esse item não existe na lista de nós.")
         return errors
 
     def calculate(self, data: GraphData) -> dict:
@@ -63,7 +63,7 @@ class EmergyCalculator:
 
         errors = self._validate(graph)
         if errors:
-            raise InvalidGraphError(f"Invalid graph: {'; '.join(errors)}")
+            raise InvalidGraphError(f"Grafo inválido. Problemas encontrados no diagrama: {'; '.join(errors)}")
 
         algebra = EmergyAlgebra(graph, source_emergy)
 

@@ -22,13 +22,18 @@ class Node(BaseModel):
     category: Optional[str] = None
     amount: Optional[float] = Field(None, gt=0)
     is_multi_output: bool = False
-
+    
     @model_validator(mode="after")
     def validate_source_fields(self) -> "Node":
         if self.type == "source":
-            if self.uev is None or self.category is None or self.amount is None:
+            faltantes = []
+            if self.uev is None: faltantes.append("UEV (Transformidade)")
+            if self.category is None: faltantes.append("Categoria")
+            if self.amount is None: faltantes.append("Quantidade (Amount)")
+            
+            if faltantes:
                 raise ValueError(
-                    f"Node '{self.label}' of type 'source' requires 'uev', 'category' and 'amount'."
+                    f"A fonte '{self.label}' precisa dos seguintes campos: {', '.join(faltantes)}."
                 )
         return self
 

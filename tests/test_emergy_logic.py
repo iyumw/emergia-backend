@@ -397,7 +397,7 @@ class TestImporter:
         assert sources[0].amount == pytest.approx(1.0)
 
     def test_edges_section_invalid_amount(self):
-        with pytest.raises(ValueError, match="Invalid amount"):
+        with pytest.raises(ValueError, match="Valor numérico inválido"):
             _parse_edges_section("source,target,amount\nA,B,NOT_A_NUMBER\n")
 
     def test_nodes_section_skips_blank_labels(self):
@@ -410,11 +410,11 @@ class TestImporter:
             build_graph_data_from_single_csv(oversized)
 
     def test_missing_all_sections_raises_error(self):
-        with pytest.raises(ValueError, match="No valid section found"):
+        with pytest.raises(ValueError, match="Nenhuma seção válida encontrada"):
             build_graph_data_from_single_csv(b"label,uev\nSun,1.0\n")
 
     def test_empty_node_and_source_sections_raises_error(self):
-        with pytest.raises(ValueError, match="missing required columns"):
+        with pytest.raises(ValueError, match="está faltando as colunas obrigatórias"):
             build_graph_data_from_single_csv(b"[nodes]\n\n[edges]\nsource,target,amount\n")
 
     def test_backwards_compat_multi_csv(self):
@@ -434,7 +434,7 @@ class TestImporter:
 class TestValidation:
 
     def test_empty_graph_raises_error(self, calculator):
-        with pytest.raises(InvalidGraphError, match="Invalid graph"):
+        with pytest.raises(InvalidGraphError, match="Grafo inválido"):
             calculator.calculate(GraphData(nodes=[], edges=[]))
 
     def test_edge_pointing_to_missing_node(self, calculator):

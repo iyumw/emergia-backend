@@ -36,7 +36,6 @@ import csv
 import io
 import uuid
 import json
-import zipfile
 import pandas as pd
 from io import BytesIO
 from typing import NamedTuple, Dict
@@ -87,7 +86,6 @@ def _split_sections(content: str) -> dict[str, str]:
     for raw_line in content.splitlines():
         line = raw_line.strip()
 
-        # Skip empty lines and comments
         if not line or line.startswith("#"):
             continue
 
@@ -298,40 +296,32 @@ def build_from_json(raw_bytes: bytes) -> ImportResult:
     return ImportResult(graph_data=graph_data, nodes=graph_data.nodes, edges=graph_data.edges)
 
 def build_from_xlsx(raw_bytes: bytes) -> ImportResult:
-    """Lê arquivos Excel esperando abas chamadas: nodes, sources, edges."""
+    """
+    Lê arquivos Excel. A ordem das abas não importa, pois a busca é feita pelo nome.
+    """
     try:
         xls = pd.ExcelFile(BytesIO(raw_bytes))
+        
         nodes_csv = pd.read_excel(xls, 'nodes').to_csv(index=False) if 'nodes' in xls.sheet_names else ""
         sources_csv = pd.read_excel(xls, 'sources').to_csv(index=False) if 'sources' in xls.sheet_names else ""
         edges_csv = pd.read_excel(xls, 'edges').to_csv(index=False) if 'edges' in xls.sheet_names else ""
+        
     except Exception as e:
-        # Se falhar aqui, o erro foi realmente na leitura do arquivo pelo Pandas
-        raise ValueError(f"Erro ao ler as abas do arquivo Excel. Certifique-se de usar abas 'nodes', 'sources' e 'edges'. Erro detalhado: {e}")
+        raise ValueError(
+            f"Erro ao ler o arquivo Excel. Verifique se as abas se chamam 'nodes', 'sources' e 'edges'. "
+            f"Erro: {e}"
+        )
     
-    # Chama a validação FORA do try/except. Assim, se faltar uma biblioteca,
-    # o Python vai te mostrar o erro real na hora.
-    return _combine_into_result(nodes_csv, sources_csv, edges_csv)
-
-def build_from_zip(raw_bytes: bytes) -> ImportResult:
-    """Lê um arquivo .zip procurando pelos 3 CSVs isolados lá dentro."""
-    nodes_csv, sources_csv, edges_csv = "", "", ""
-    with zipfile.ZipFile(BytesIO(raw_bytes)) as z:
-        for filename in z.namelist():
-            lower_name = filename.lower()
-            if "node" in lower_name and lower_name.endswith(".csv"):
-                nodes_csv = z.read(filename).decode("utf-8")
-            elif "source" in lower_name and lower_name.endswith(".csv"):
-                sources_csv = z.read(filename).decode("utf-8")
-            elif "edge" in lower_name and lower_name.endswith(".csv"):
-                edges_csv = z.read(filename).decode("utf-8")
     return _combine_into_result(nodes_csv, sources_csv, edges_csv)
 
 def build_graph_data_from_uploads(files_data: Dict[str, bytes]) -> ImportResult:
     """
-    Roteador principal: decide qual parser usar baseado no nome e quantidade de arquivos.
-    `files_data` é um dicionário { "nome_do_arquivo.extensao": bytes }
+    Roteador principal: 
+    - Se enviar > 1 arquivo: Devem ser os 3 CSVs (nodes, sources, edges).
+    - Se enviar 1 arquivo: Deve ser .json ou .xlsx.
     """
-    # Cenário 1: Usuário enviou múltiplos arquivos separadamente (ex: 3 CSVs)
+    
+    # Cenário 1: Múltiplos arquivos (3 CSVs separados)
     if len(files_data) > 1:
         nodes_csv, sources_csv, edges_csv = "", "", ""
         for name, content in files_data.items():
@@ -339,9 +329,13 @@ def build_graph_data_from_uploads(files_data: Dict[str, bytes]) -> ImportResult:
             if "node" in name: nodes_csv = txt
             elif "source" in name: sources_csv = txt
             elif "edge" in name: edges_csv = txt
+            
+        if not nodes_csv or not edges_csv:
+            raise ValueError("Para múltiplos arquivos, envie ao menos 'nodes' e 'edges' em CSVs separados.")
+            
         return _combine_into_result(nodes_csv, sources_csv, edges_csv)
 
-    # Cenário 2: Usuário enviou apenas 1 arquivo
+    # Cenário 2: Arquivo único (Apenas JSON ou XLSX)
     if len(files_data) == 1:
         name, content = list(files_data.items())[0]
         name = name.lower()
@@ -350,12 +344,7 @@ def build_graph_data_from_uploads(files_data: Dict[str, bytes]) -> ImportResult:
             return build_from_json(content)
         elif name.endswith(".xlsx"):
             return build_from_xlsx(content)
-        elif name.endswith(".zip"):
-            return build_from_zip(content)
         elif name.endswith(".csv"):
-            return build_graph_data_from_single_csv(content) # O seu original
+            raise ValueError("O sistema não aceita um único arquivo .csv. Envie os 3 CSVs separados ou use .xlsx/.json.")
 
-    raise ValueError(
-        "Formato não suportado. Envie 1 arquivo (.json, .xlsx, .zip, .csv híbrido) "
-        "ou 3 arquivos .csv separados (nodes, sources, edges)."
-    )
+    raise ValueError("Formato não suportado. Envie .json, .xlsx ou os 3 .csv separados.")

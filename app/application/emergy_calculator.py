@@ -3,6 +3,7 @@ import time
 import uuid
 from app.domain.entities import GraphData
 from app.domain.algebra import EmergyAlgebra
+from app.domain.exceptions import InvalidGraphError, NodeNotFoundError
 
 
 class EmergyCalculator:
@@ -25,11 +26,11 @@ class EmergyCalculator:
 
         for edge in data.edges:
             if edge.source not in allowed_ids:
-                raise ValueError(
+                raise NodeNotFoundError(
                     f"Edge: source node '{edge.source}' not found in node list."
                 )
             if edge.target not in allowed_ids:
-                raise ValueError(
+                raise NodeNotFoundError(
                     f"Edge: target node '{edge.target}' not found in node list."
                 )
             eid = edge.id if getattr(edge, "id", None) else str(uuid.uuid4())[:8]
@@ -62,7 +63,7 @@ class EmergyCalculator:
 
         errors = self._validate(graph)
         if errors:
-            raise ValueError(f"Invalid graph: {'; '.join(errors)}")
+            raise InvalidGraphError(f"Invalid graph: {'; '.join(errors)}")
 
         algebra = EmergyAlgebra(graph, source_emergy)
 

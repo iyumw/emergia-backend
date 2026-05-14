@@ -4,9 +4,8 @@ EmergyCalculator is injected via FastAPI Depends (dependency inversion).
 """
 
 import base64
-import json
 import io
-from typing import Annotated, List, Any, Optional
+from typing import Annotated, List, Any
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Query
 from fastapi.responses import StreamingResponse
 from reportlab.pdfgen import canvas
@@ -78,32 +77,36 @@ async def calculate_emergy(
 @router.post("/import", status_code=status.HTTP_201_CREATED)
 async def import_data(
     files: List[UploadFile] = File(
-        description="Envie 1 arquivo (.json, .xlsx, .zip, CSV híbrido) ou 3 CSVs separados (nodes, sources, edges)."
+        description="Envie 1 arquivo (.json, .xlsx) ou os 3 CSVs separados (nodes, sources, edges)."
     ),
     calculator: Annotated[EmergyCalculator, Depends(get_calculator)] = None,
 ):
-    """
-    Endpoint polimórfico de importação.
-    Aceita diferentes estruturas e delega para o parser correto de forma invisível para o usuário.
-    """
     if not files:
         raise HTTPException(status_code=400, detail="Nenhum arquivo enviado.")
 
-    # 1. Lê os bytes de todos os arquivos enviados
+    ALLOWED_EXTENSIONS = {'.csv', '.json', '.xlsx'}
     files_data = {}
-    for file in files:
-        files_data[file.filename.lower()] = await file.read()
 
-    # 2. Processa, independente do formato, retornando as entidades de domínio
+    for file in files:
+        filename = file.filename.lower()
+        # Validação de Extensão
+        if not any(filename.endswith(ext) for ext in ALLOWED_EXTENSIONS):
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Arquivo {file.filename} não suportado. Use apenas .csv, .json ou .xlsx."
+            )
+        
+        files_data[filename] = await file.read()
+
     try:
         import_result = build_graph_data_from_uploads(files_data)
-        calc_result   = calculator.calculate(import_result.graph_data)
+        calc_result = calculator.calculate(import_result.graph_data)
     except (ValueError, UnicodeDecodeError, KeyError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Erro durante a importação: {exc}")
 
-    # 3. Salva a sessão no formato padronizado
+    # Salva a sessão no formato padronizado
     nodes_payload = [node.model_dump() for node in import_result.nodes]
     edges_payload = [edge.model_dump() for edge in import_result.edges]
 
@@ -176,7 +179,7 @@ async def export_pdf(graph_id: str, config: dict[str, Any] = {}):
     p = canvas.Canvas(buffer, pagesize=A4)
     largura, altura = A4
 
-    # --- 1. Título e Identificação ---
+    # Título e Identificação
     p.setFont("Helvetica-Bold", 16)
     p.drawString(50, altura - 50, config.get("title", "Relatório de Emergia"))
     
@@ -184,7 +187,7 @@ async def export_pdf(graph_id: str, config: dict[str, Any] = {}):
     p.drawString(50, altura - 70, f"ID do Grafo: {graph_id}")
     p.drawString(50, altura - 85, "Status: Calculado com sucesso")
 
-    # --- 2. Processamento da Imagem Base64 ---
+    # Processamento da Imagem Base64
     graph_image_base64 = config.get("graph_image")
     
     if graph_image_base64:
@@ -207,11 +210,10 @@ async def export_pdf(graph_id: str, config: dict[str, Any] = {}):
             
         except Exception as e:
             p.setFont("Helvetica-Oblique", 8)
-            p.setFillColorRGB(0.7, 0, 0) # Vermelho para erro
+            p.setFillColorRGB(0.7, 0, 0)
             p.drawString(50, altura - 100, f"Erro ao processar imagem: {str(e)}")
             p.setFillColorRGB(0, 0, 0)
 
-    # --- 3. Finalização ---
     p.showPage()
     p.save()
 

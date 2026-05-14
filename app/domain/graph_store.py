@@ -21,8 +21,8 @@ from typing import Optional, TypedDict
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-SESSION_TTL_SECONDS: int = 60 * 60  # 1 hour
-MAX_SESSIONS: int = 500             # cap memory usage
+SESSION_TTL_SECONDS: int = 60 * 60 
+MAX_SESSIONS: int = 500
 
 
 # ── Session schema ────────────────────────────────────────────────────────────
@@ -51,4 +51,14 @@ def save_graph(nodes: list[dict], edges: list[dict], result: dict) -> str:
     return graph_id
 
 def get_graph(graph_id: str) -> Optional[GraphEntry]:
-    return _store.get(graph_id)
+    if graph_id not in _store:
+        return None
+    
+    entry = _store[graph_id]
+    age_seconds = time.time() - entry["created_at"]
+    
+    if age_seconds > SESSION_TTL_SECONDS:
+        del _store[graph_id]
+        return None
+    
+    return entry

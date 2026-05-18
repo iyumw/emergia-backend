@@ -12,11 +12,6 @@ from app.domain.entities import Node, Edge, GraphData
 
 MAX_FILE_SIZE_BYTES: int = 5 * 1024 * 1024  # 5 MB
 
-_SECTION_NODES   = "[nodes]"
-_SECTION_SOURCES = "[sources]"
-_SECTION_EDGES   = "[edges]"
-_KNOWN_SECTIONS  = {_SECTION_NODES, _SECTION_SOURCES, _SECTION_EDGES}
-
 
 # ── Result type ───────────────────────────────────────────────────────────────
 
@@ -41,38 +36,6 @@ def _validate_headers(headers: list[str], required: list[str], section: str) -> 
         )
 
 
-def _split_sections(content: str) -> dict[str, str]:
-    """
-    Splits the flat CSV content into per-section raw strings.
-    Returns a dict: section_name → csv_block (header + rows).
-    """
-    sections: dict[str, list[str]] = {}
-    current: str | None = None
-
-    for raw_line in content.splitlines():
-        line = raw_line.strip()
-
-        if not line or line.startswith("#"):
-            continue
-
-        lower = line.lower()
-        if lower in _KNOWN_SECTIONS:
-            current = lower
-            sections[current] = []
-            continue
-
-        if current is not None:
-            sections[current].append(raw_line)
-
-    if not sections:
-        raise ValueError(
-            f"Nenhuma seção válida encontrada. O arquivo deve conter pelo menos uma das seguintes seções: "
-            f"{sorted(_KNOWN_SECTIONS)}"
-        )
-
-    return {k: "\n".join(lines) for k, lines in sections.items()}
-
-
 # ── Section parsers ───────────────────────────────────────────────────────────
 
 def _parse_nodes_section(content: str) -> list[Node]:
@@ -81,7 +44,7 @@ def _parse_nodes_section(content: str) -> list[Node]:
     Columns optional : id, is_multi_output
     """
     reader = csv.DictReader(io.StringIO(content))
-    _validate_headers(reader.fieldnames or [], ["label"], _SECTION_NODES)
+    _validate_headers(reader.fieldnames or [], ["label"], "nodes")
     nodes: list[Node] = []
     for row in reader:
         if not row.get("label", "").strip():
@@ -108,7 +71,7 @@ def _parse_sources_section(content: str) -> list[Node]:
     _validate_headers(
         reader.fieldnames or [],
         ["label", "uev", "category"],
-        _SECTION_SOURCES,
+        "sources",
     )
     nodes: list[Node] = []
     for row in reader:
@@ -119,7 +82,7 @@ def _parse_sources_section(content: str) -> list[Node]:
             amount = float(row.get("amount", "1").strip() or "1")
         except ValueError as exc:
             raise ValueError(
-                f"Valor numérico inválido na seção '{_SECTION_SOURCES}' na linha {dict(row)}: {exc}"
+                f"Valor numérico inválido na seção 'sources' na linha {dict(row)}: {exc}"
             ) from exc
 
         node_id = row.get("id", "").strip() or _generate_id()
@@ -145,7 +108,7 @@ def _parse_edges_section(content: str) -> list[Edge]:
     _validate_headers(
         reader.fieldnames or [],
         ["source", "target", "amount"],
-        _SECTION_EDGES,
+        "edges",
     )
     edges: list[Edge] = []
     for row in reader:
@@ -155,7 +118,7 @@ def _parse_edges_section(content: str) -> list[Edge]:
             amount = float(row["amount"].strip())
         except ValueError as exc:
             raise ValueError(
-                f"Valor numérico inválido na seção '{_SECTION_EDGES}' na linha {dict(row)}: {exc}"
+                f"Valor numérico inválido na seção 'edges' na linha {dict(row)}: {exc}"
             ) from exc
 
         edge_id = row.get("id", "").strip() or _generate_id()
@@ -170,61 +133,6 @@ def _parse_edges_section(content: str) -> list[Edge]:
             )
         )
     return edges
-
-
-# ── Public API ────────────────────────────────────────────────────────────────
-
-def build_graph_data_from_single_csv(raw_bytes: bytes) -> ImportResult:
-    """
-    Parses a single multi-section CSV file and returns an ImportResult
-    containing the GraphData, the flat node list and the flat edge list.
-
-    Raises
-    ------
-    ValueError
-        • File exceeds MAX_FILE_SIZE_BYTES.
-        • Required section or column is missing.
-        • A numeric field contains a non-numeric value.
-    UnicodeDecodeError
-        • File is not valid UTF-8.
-    """
-    # ── Size guard ────────────────────────────────────────────────────────────
-    if len(raw_bytes) > MAX_FILE_SIZE_BYTES:
-        mb = MAX_FILE_SIZE_BYTES // (1024 * 1024)
-        raise ValueError(
-            f"O arquivo excede a quantidade de {mb} MB "
-            f"({len(raw_bytes):,} bytes received)."
-        )
-
-    content = raw_bytes.decode("utf-8")
-    sections = _split_sections(content)
-
-    # ── Parse each section ────────────────────────────────────────────────────
-    process_nodes = (
-        _parse_nodes_section(sections[_SECTION_NODES])
-        if _SECTION_NODES in sections
-        else []
-    )
-    source_nodes = (
-        _parse_sources_section(sections[_SECTION_SOURCES])
-        if _SECTION_SOURCES in sections
-        else []
-    )
-    all_nodes: list[Node] = process_nodes + source_nodes
-
-    if not all_nodes:
-        raise ValueError(
-            "O arquivo deve conter pelo menos um nó (process ou source) para formar um grafo válido."
-        )
-
-    edges = (
-        _parse_edges_section(sections[_SECTION_EDGES])
-        if _SECTION_EDGES in sections
-        else []
-    )
-
-    graph_data = GraphData(nodes=all_nodes, edges=edges)
-    return ImportResult(graph_data=graph_data, nodes=all_nodes, edges=edges)
 
 
 # ── Backwards-compatible multi-file helper (kept for tests) ──────────────────

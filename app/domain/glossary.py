@@ -1,6 +1,7 @@
 """
-Glossário de conceitos emergéticos e da metodologia de cálculo.
-Atende ao Requisito Funcional Opcional 2 (RFO 2) do planejamento.
+Glossary of Emergy Concepts
+Defines key terms and concepts related to emergy analysis. 
+It serves as a reference for understanding the terminology used throughout the application.
 """
 
 from typing import TypedDict

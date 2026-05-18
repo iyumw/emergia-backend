@@ -10,8 +10,6 @@ Design notes
 • Pure in-memory dict — no database dependency, no disk I/O.
 • TTL-based expiry: sessions older than SESSION_TTL_SECONDS are evicted
   lazily on every write (or on explicit cleanup calls).
-• Not suitable for multi-process deployments (use Redis there).
-  For a single-worker FastAPI process this is perfectly sufficient.
 """
 
 import uuid

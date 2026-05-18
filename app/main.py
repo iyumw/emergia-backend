@@ -1,10 +1,10 @@
 """
-Ponto de entrada da aplicação FastAPI — Motor de Cálculo Emergético.
+Entry point for the FastAPI application — Emergy Calculation Engine.
 
-Segurança (RNF 3.1.7):
-  - Dados são processados apenas em memória, sem persistência em banco de dados
-    ou envio a servidores externos.
-  - Em produção, substitua allow_origins=["*"] pela URL exata do front-end
+Security (RNF 3.1.7):
+  - Data is processed only in memory, without persistence in databases
+    or sending to external servers.
+  - In production, replace allow_origins=["*"] with the exact URL of the frontend
     para evitar acesso não autorizado (ex.: ["https://meu-app.com"]).
 """
 
@@ -23,8 +23,7 @@ app = FastAPI(
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
-# Em produção, defina a variável de ambiente ALLOWED_ORIGINS com a URL do
-# front-end (ex.: "https://meu-app.com"). Nunca use "*" em produção.
+# On Render (production), ALLOWED_ORIGINS env var is set to the frontend URL.
 _allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
 _allowed_origins = (
     [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]

@@ -1,37 +1,3 @@
-"""
-CSV importer for life-cycle inventory data.
-
-Single-file format
-──────────────────
-The importer now accepts ONE .csv file that contains three clearly delimited
-sections, identified by section headers on their own line:
-
-    [nodes]
-    id,label,is_multi_output
-    proc-01,Plantation,false
-    proc-02,Harvest,false
-
-    [sources]
-    id,label,uev,category,amount
-    src-01,Solar Energy,1.0,renewable,3500000.0
-
-    [edges]
-    source,target,amount
-    src-01,proc-01,3500000.0
-    proc-01,proc-02,1000.0
-
-Rules
-• id is optional in every section — auto-generated when blank or absent.
-• Blank lines and lines starting with # are ignored.
-• Section order does not matter.
-• File size is limited to MAX_FILE_SIZE_BYTES (default 5 MB).
-
-Mandatory columns per section
-• [nodes]   → label
-• [sources] → label, uev, category
-• [edges]   → source, target, amount
-"""
-
 import csv
 import io
 import uuid
@@ -226,7 +192,7 @@ def build_graph_data_from_single_csv(raw_bytes: bytes) -> ImportResult:
     if len(raw_bytes) > MAX_FILE_SIZE_BYTES:
         mb = MAX_FILE_SIZE_BYTES // (1024 * 1024)
         raise ValueError(
-            f"File exceeds the maximum allowed size of {mb} MB "
+            f"O arquivo excede a quantidade de {mb} MB "
             f"({len(raw_bytes):,} bytes received)."
         )
 
@@ -277,7 +243,7 @@ def build_graph_data_from_csvs(
     return GraphData(nodes=all_nodes, edges=edges)
 
 def _combine_into_result(nodes_csv: str, sources_csv: str, edges_csv: str) -> ImportResult:
-    """Reaproveita os validadores existentes do CSV para strings independentes."""
+    """Combines the parsed CSV data into a single ImportResult."""
     process_nodes = _parse_nodes_section(nodes_csv) if nodes_csv.strip() else []
     source_nodes = _parse_sources_section(sources_csv) if sources_csv.strip() else []
     all_nodes = process_nodes + source_nodes
@@ -290,14 +256,15 @@ def _combine_into_result(nodes_csv: str, sources_csv: str, edges_csv: str) -> Im
     return ImportResult(graph_data=graph_data, nodes=all_nodes, edges=edges)
 
 def build_from_json(raw_bytes: bytes) -> ImportResult:
-    """Lê diretamente do formato JSON."""
+    """Parses a JSON file directly into GraphData using Pydantic's validation."""
     data = json.loads(raw_bytes.decode("utf-8"))
     graph_data = GraphData(**data) # Validação automática via Pydantic
     return ImportResult(graph_data=graph_data, nodes=graph_data.nodes, edges=graph_data.edges)
 
 def build_from_xlsx(raw_bytes: bytes) -> ImportResult:
     """
-    Lê arquivos Excel. A ordem das abas não importa, pois a busca é feita pelo nome.
+    Reads Excel files directly, looking for sheets named 'nodes', 'sources' and 'edges'.
+     - The order of the sheets does not matter, as the lookup is done by name.
     """
     try:
         xls = pd.ExcelFile(BytesIO(raw_bytes))
@@ -316,9 +283,9 @@ def build_from_xlsx(raw_bytes: bytes) -> ImportResult:
 
 def build_graph_data_from_uploads(files_data: Dict[str, bytes]) -> ImportResult:
     """
-    Roteador principal: 
-    - Se enviar > 1 arquivo: Devem ser os 3 CSVs (nodes, sources, edges).
-    - Se enviar 1 arquivo: Deve ser .json ou .xlsx.
+    Main entry point for building GraphData: 
+    - If the user sends> 1 file: It has to be 3 CSVs (nodes, sources, edges).
+    - If the user sends 1 file: It has to be a .json or .xlsx file.
     """
     
     # Cenário 1: Múltiplos arquivos (3 CSVs separados)

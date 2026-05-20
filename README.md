@@ -1,150 +1,178 @@
-# EmergyCalc Backend
+# Emergia Backend
 
-Python/FastAPI backend for emergy calculation based on H.T. Odum's theory.
+API FastAPI para cálculo de emergia baseada na teoria de H.T. Odum.
 
-## Project Structure
+## 📋 Descrição
+
+Motor de cálculo emergético que recebe a descrição de um sistema (fontes, processos e fluxos) e distribui a "emergia" entre os nós seguindo as regras de álgebra emergética de Odum.
+
+## ✨ Características
+
+- **API REST** documentada com Swagger/OpenAPI
+- **Cálculo de Emergia** baseado em teoria estabelecida
+- **Importação de CSV** para dados em lote
+- **Arquitetura em camadas**: Domain, Application, Infrastructure
+- **Testes automatizados** com cobertura mínima de 80%
+- **CORS configurável** para desenvolvimento e produção
+
+## 📁 Estrutura do Projeto
 
 ```
-emergy/
+emergia-backend/
 ├── app/
 │   ├── __init__.py
-│   ├── main.py                     # Ponto de entrada da API
-│   ├── domain/                     # Regras de negócio puras (sem dependências externas)
+│   ├── main.py                 # Ponto de entrada da API (FastAPI)
+│   ├── application/
 │   │   ├── __init__.py
-│   │   ├── entities.py             # Classes: Processo, Fluxo, Matriz, Grafo
-│   │   └── algebra.py              # Classe: AlgebraEmergetica (regras de cálculo)
-│   ├── application/                # Orquestração dos casos de uso
+│   │   └── emergy_calculator.py   # Orquestração de casos de uso
+│   ├── domain/                 # Lógica de negócio (pura, sem dependências externas)
 │   │   ├── __init__.py
-│   │   └── calculador_service.py   # Classe: CalculadorEmergia
-│   └── infrastructure/             # Comunicação com o mundo externo (Web, Arquivos)
+│   │   ├── entities.py         # Modelos: Processo, Fluxo, Grafo, etc
+│   │   ├── algebra.py          # Regras de cálculo emergético
+│   │   ├── graph_store.py      # Armazenamento e manipulação do grafo
+│   │   ├── glossary.py         # Dicionário de termos
+│   │   └── exceptions.py       # Exceções customizadas
+│   └── infrastructure/         # Comunicação externa (API, Arquivos)
 │       ├── __init__.py
 │       ├── api/
 │       │   ├── __init__.py
-│       │   └── routes.py           # Controladores (Endpoints REST para o Angular)
+│       │   └── routes.py       # Endpoints REST
 │       └── adapters/
 │           ├── __init__.py
-│           └── importador.py       # Classe: Importador (leitura e validação de arquivos)
-├── requirements.txt                # Lista de dependências (como o package.json)
-└── .gitignore
+│           └── importador.py   # Leitura e validação de arquivos importados
+├── tests/
+│   ├── __init__.py
+│   ├── conftest.py             # Configuração do pytest
+│   ├── helpers.py              # Utilitários para testes
+│   ├── test_*.py               # Testes unitários e de integração
+│   └── (fixtures e mocks)
+├── requirements.txt            # Dependências
+└── README.md
 ```
 
-## Setup
+## 🔧 Requisitos
+
+- **Python**: 3.10+
+- **pip**: Gerenciador de pacotes
+
+## 🚀 Instalação e Execução
+
+### 1. Clonar o repositório e entrar no diretório
 
 ```bash
-# 1. Create and activate virtual environment
-python -m venv venv
-venv\Scripts\activate        # Windows
-source venv/bin/activate     # Linux / Mac
-
-# 2. Install dependencies
-pip install -r requirements.txt
-
-# 3. Run the API
-uvicorn main:app --reload --port 8000
-
-# 4. Run tests
-pytest tests/ -v
+git clone <repositorio>
+cd emergia_backend
 ```
 
-Open http://localhost:8000/docs for interactive Swagger documentation.
+### 2. Criar e ativar ambiente virtual
 
-## Endpoints
-
-| Method | Route            | Description                          |
-|--------|------------------|--------------------------------------|
-| POST   | /api/v1/calculate | Calculate emergy from JSON input     |
-| POST   | /api/v1/import    | Calculate emergy from 3 CSV files    |
-| POST   | /api/v1/export    | Calculate and download result as JSON|
-
-## Example payload for `/api/v1/calculate`
-
-# Motor de Cálculo Emergético (backend)
-
-Projeto Python com FastAPI que implementa um motor de cálculo emergético baseado nas regras de H.T. Odum.
-
-Este repositório contém a API que recebe a descrição de um sistema (fontes, processos e fluxos) e retorna a "emergia" distribuída entre os nós seguindo as quatro regras de álgebra emergética.
-
-## Visão geral da estrutura
-
-```
-.
-├── app/                        # Código da aplicação (API, domínio e infra)
-│   ├── main.py                 # Ponto de entrada (FastAPI)
-│   ├── application/            # Casos de uso / orquestração
-│   ├── domain/                 # Regras de negócio (modelos e álgebra)
-│   └── infrastructure/         # Adaptadores e rotas da API
-├── tests/                      # Testes automatizados (pytest)
-└── requirements.txt            # Dependências do projeto
-```
-
-## Conteúdo principal
-
-- `app/main.py`: cria a instância FastAPI, configura CORS e registra as rotas em `app.infrastructure.api.routes`.
-- `app/application/` e `app/domain/`: implementam a lógica de cálculo emergético e modelos Pydantic usados nos testes.
-- `app/infrastructure/adapters/importador.py`: funções para parsear CSVs (usadas nos testes de integração).
-
-## Requisitos
-
-Recomendado: Python 3.10+.
-
-As dependências estão listadas em `requirements.txt`.
-
-## Instalação e execução (Windows)
-
-Abra um terminal PowerShell e execute:
-
+**Windows (PowerShell):**
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
+```
+
+**Windows (cmd.exe):**
+```cmd
+python -m venv .venv
+.\.venv\Scripts\activate.bat
+```
+
+**Linux/Mac:**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 3. Instalar dependências
+
+```bash
 pip install -r requirements.txt
-# Iniciar a API (a partir da raiz do projeto)
+```
+
+### 4. Executar a API
+
+```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-Observação: se estiver usando cmd.exe, ative o venv com `.\.venv\Scripts\activate.bat`.
+A API estará disponível em `http://localhost:8000`  
+Documentação interativa (Swagger): `http://localhost:8000/docs`
 
-Após iniciar, a documentação interativa estará em: http://localhost:8000/docs
+## 🔌 Endpoints
 
-## Endpoints (resumo)
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/` | Health check |
+| POST | `/api/v1/calculate` | Calcula emergia a partir de JSON |
+| POST | `/api/v1/import` | Importa e calcula emergia a partir de CSV |
 
-- GET  /                — Health check
-- POST /api/v1/calculate — Recebe JSON com fontes/processos/fluxos e retorna o cálculo emergético
-- POST /api/v1/import    — Importa dados via CSV (nodes, sources, edges)
-- POST /api/v1/export    — (planejado) exporta resultados como arquivo
-
-As rotas ficam registradas com prefixo `/api` (veja `app/main.py`). A documentação Swagger mostra os detalhes de payload.
-
-## Executar testes
-
-Os testes usam `pytest`. Execute no PowerShell:
-
-```powershell
-# Ative o ambiente virtual (veja seção anterior)
-pip install -r requirements.txt
-pytest tests/ -v
-```
-
-## Exemplos de payload
-
-Exemplo de JSON para `/api/v1/calculate` (simplificado):
+### Exemplo de payload para `/api/v1/calculate`
 
 ```json
 {
   "sources": [
-    { "id": "SRC_SUN", "label": "Sol", "uev": 1.0, "categoria": "renovavel", "quantidade": 3500000.0 }
+    {
+      "id": "SUN",
+      "label": "Solar",
+      "uev": 1.0,
+      "categoria": "renovavel",
+      "quantidade": 3500000.0
+    }
   ],
   "processes": [
-    { "id": "P1", "label": "Plantacao" },
-    { "id": "P2", "label": "Colheita" }
+    { "id": "P1", "label": "Fotossíntese" },
+    { "id": "P2", "label": "Crescimento" }
   ],
   "flows": [
-    { "origem": "SRC_SUN", "destino": "P1", "quantidade": 3500000.0 },
+    { "origem": "SUN", "destino": "P1", "quantidade": 3500000.0 },
     { "origem": "P1", "destino": "P2", "quantidade": 1000.0 }
   ]
 }
 ```
 
-## Observações de segurança e produção
+## 🧪 Executar Testes
 
-- Em desenvolvimento, o CORS permite `http://localhost:4200` e `http://localhost:3000` por padrão. Em produção, defina a variável de ambiente `ALLOWED_ORIGINS` com as URLs permitidas e evite `"*"`.
-- Atualmente os dados são processados apenas em memória; não há persistência nem envio para serviços externos.
+```bash
+# Todos os testes com cobertura
+pytest tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=80
+
+# Apenas um arquivo
+pytest tests/test_calculator.py -v
+
+# Com saída detalhada
+pytest tests/ -vv --tb=short
+```
+
+## 📦 Dependências Principais
+
+Veja `requirements.txt` para a lista completa. Principais:
+
+- **FastAPI**: Framework web assíncrono
+- **Pydantic**: Validação de dados e serialização
+- **pytest**: Framework de testes
+- **pytest-cov**: Cobertura de testes
+
+## ⚙️ Configuração
+
+### CORS em Desenvolvimento
+
+Por padrão, CORS permite requisições de `http://localhost:4200` (Angular) e `http://localhost:3000` (Node).
+
+Para alterar, edite `app/main.py` ou defina a variável de ambiente `ALLOWED_ORIGINS`:
+
+```bash
+set ALLOWED_ORIGINS=http://localhost:3000,http://meuapp.local
+```
+
+## 📝 Notas Importantes
+
+- Os dados são processados **apenas em memória**; sem persistência em banco de dados
+- A arquitetura segue **Clean Architecture** com separação clara entre domínio, aplicação e infraestrutura
+- Testes cobrem unidades, integração e performance
+
+## 📚 Referências
+
+- [H.T. Odum - Emergy Theory](https://www.energy.usf.edu/)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [Pydantic Documentation](https://docs.pydantic.dev/)

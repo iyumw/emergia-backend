@@ -14,6 +14,7 @@ from reportlab.lib.pagesizes import A4
 
 from app.domain.entities import GraphData
 from app.application.emergy_calculator import EmergyCalculator
+from app.domain.exceptions import EmergyError, InvalidGraphError, NodeNotFoundError
 from app.infrastructure.adapters.importador import build_graph_data_from_uploads
 from app.domain.glossary import get_glossary
 from app.domain.graph_store import save_graph, get_graph
@@ -65,10 +66,18 @@ async def calculate_emergy(
     try:
         result = calculator.calculate(data)
         return result
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Calculation error: {exc}")
+    except (NodeNotFoundError, InvalidGraphError) as e:
+        # Captura erros de validação estrutural do grafo e transforma em HTTP 400 Bad Request
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except EmergyError as e:
+        # Captura qualquer outro erro genérico do motor de emergia
+        raise HTTPException(
+            status_code=status.HTTP_420_METHOD_FAILURE, # ou outro status de negócio que preferir
+            detail=str(e)
+        )
 
 
 # ── Import from uploaded files ─────────────────────────────────────────────

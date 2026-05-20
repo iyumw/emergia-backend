@@ -25,6 +25,8 @@ class EmergyAlgebra:
         self._cache: Dict[str, float] = {}
         self._processing: Set[str] = set()
         self.paths_count = 0
+        self._ancestors_cache: Dict[str, Set[str]] = {}
+        self._total_out_amount_cache: Dict[str, float] = {}
 
     # ------------------------------------------------------------------
     # Rule 1: source emergy → output
@@ -50,11 +52,16 @@ class EmergyAlgebra:
     def _apply_split(
         self, parent_emergy: float, current_edge_amount: float, parent_id: str
     ) -> float:
-        sibling_amounts = [
-            self.graph[parent_id][child]["amount"]
-            for child in self.graph.successors(parent_id)
-        ]
-        total = sum(sibling_amounts)
+        # Busca o total acumulado do cache para evitar o loop O(N) repetitivo
+        if parent_id in self._total_out_amount_cache:
+            total = self._total_out_amount_cache[parent_id]
+        else:
+            total = sum(
+                self.graph[parent_id][child]["amount"]
+                for child in self.graph.successors(parent_id)
+            )
+            self._total_out_amount_cache[parent_id] = total
+
         if total == 0:
             return 0.0
         return parent_emergy * (current_edge_amount / total)
@@ -87,24 +94,55 @@ class EmergyAlgebra:
             contributions = []
             for parent_id in process_parents:
                 parent_emergy = self.calculate(parent_id)
-                is_multi_output = self.graph.nodes[parent_id].get("is_multi_output", False)
-                parent_outputs = list(self.graph.successors(parent_id))
-
+                
+                # Otimização 1: Acessa o dicionário de atributos diretamente
+                parent_node = self.graph.nodes[parent_id]
+                is_multi_output = parent_node.get("is_multi_output", False)
+                
                 if is_multi_output:
                     contributions.append(self._apply_co_product(parent_emergy))
-                elif len(parent_outputs) > 1:
-                    edge_amount = self.graph[parent_id][node_id]["amount"]
-                    contributions.append(
-                        self._apply_split(parent_emergy, edge_amount, parent_id)
-                    )
                 else:
-                    contributions.append(parent_emergy)
+                    # Otimização 2: Usa out_degree em vez de instanciar list(successors)
+                    parent_out_degree = self.graph.out_degree(parent_id)
+                    
+                    if parent_out_degree > 1:
+                        edge_amount = self.graph[parent_id][node_id]["amount"]
+                        contributions.append(
+                            self._apply_split(parent_emergy, edge_amount, parent_id)
+                        )
+                    else:
+                        contributions.append(parent_emergy)
 
             emergy = self._combine(node_id, contributions, process_parents)
 
         self._processing.discard(node_id)
         self._cache[node_id] = emergy
         return emergy
+    
+    def _get_node_ancestors(self, nid: str, visited: Set[str] = None) -> Set[str]:
+        """Busca recursiva de ancestrais com cache global do ciclo de vida da instância."""
+        if nid in self._ancestors_cache:
+            return self._ancestors_cache[nid]
+            
+        if visited is None:
+            visited = set()
+        if nid in visited:
+            return set()
+            
+        visited.add(nid)
+        
+        # Mapeia os predecessores diretos
+        anc = set(self.graph.predecessors(nid))
+        
+        # Copia a lista para iterar com segurança e busca recursivamente
+        for p in list(anc):
+            anc |= self._get_node_ancestors(p, visited)
+            
+        visited.remove(nid)
+        
+        # Guarda no cache global da instância
+        self._ancestors_cache[nid] = anc
+        return anc
 
     def _combine(self, node_id: str, contributions: list, parents: list) -> float:
         """Rule 4: avoids double counting when flows share a common origin."""
@@ -113,31 +151,24 @@ class EmergyAlgebra:
         if len(parents) < 2:
             return sum(contributions)
 
-        def get_all_ancestors(nid, visited=None):
-            if visited is None:
-                visited = set()
-            if nid in visited:
-                return set()
-            visited.add(nid)
-            anc = set(self.graph.predecessors(nid))
-            for p in list(anc):
-                anc |= get_all_ancestors(p, visited)
-            return anc
-
-        lineages = [get_all_ancestors(p) for p in parents]
+        # OTIMIZAÇÃO: Usa o método da classe com cache integrado
+        lineages = [self._get_node_ancestors(p) for p in parents]
 
         has_common_origin = False
-        for i in range(len(lineages)):
-            for j in range(i + 1, len(lineages)):
-                if (
-                    lineages[i] & lineages[j]
-                    or (parents[i] in lineages[j])
-                    or (parents[j] in lineages[i])
-                ):
-                    has_common_origin = True
-                    break
-            if has_common_origin:
+        seen_ancestors = set()
+        seen_parents = set()
+
+        for i, current_lineage in enumerate(lineages):
+            p_current = parents[i]
+            
+            if (p_current in seen_ancestors or 
+                any(p in current_lineage for p in seen_parents) or 
+                not current_lineage.isdisjoint(seen_ancestors)):
+                has_common_origin = True
                 break
+                
+            seen_ancestors.update(current_lineage)
+            seen_parents.add(p_current)
 
         if has_common_origin:
             return self._avoid_double_counting(contributions)

@@ -165,6 +165,11 @@ def _combine_into_result(nodes_csv: str, sources_csv: str, edges_csv: str) -> Im
 
 def build_from_json(raw_bytes: bytes) -> ImportResult:
     """Parses a JSON file directly into GraphData using Pydantic's validation."""
+    if len(raw_bytes) > MAX_FILE_SIZE_BYTES:
+        raise ValueError(
+            f"Arquivo JSON muito grande. Tamanho máximo permitido: {MAX_FILE_SIZE_BYTES / 1024 / 1024:.1f} MB, "
+            f"Tamanho do arquivo: {len(raw_bytes) / 1024 / 1024:.1f} MB"
+        )
     data = json.loads(raw_bytes.decode("utf-8"))
     graph_data = GraphData(**data) # Validação automática via Pydantic
     return ImportResult(graph_data=graph_data, nodes=graph_data.nodes, edges=graph_data.edges)
@@ -174,6 +179,11 @@ def build_from_xlsx(raw_bytes: bytes) -> ImportResult:
     Reads Excel files directly, looking for sheets named 'nodes', 'sources' and 'edges'.
      - The order of the sheets does not matter, as the lookup is done by name.
     """
+    if len(raw_bytes) > MAX_FILE_SIZE_BYTES:
+        raise ValueError(
+            f"Arquivo XLSX muito grande. Tamanho máximo permitido: {MAX_FILE_SIZE_BYTES / 1024 / 1024:.1f} MB, "
+            f"Tamanho do arquivo: {len(raw_bytes) / 1024 / 1024:.1f} MB"
+        )
     try:
         xls = pd.ExcelFile(BytesIO(raw_bytes))
         
@@ -195,6 +205,12 @@ def build_graph_data_from_uploads(files_data: Dict[str, bytes]) -> ImportResult:
     - If the user sends> 1 file: It has to be 3 CSVs (nodes, sources, edges).
     - If the user sends 1 file: It has to be a .json or .xlsx file.
     """
+    for name, content in files_data.items():
+        if len(content) > MAX_FILE_SIZE_BYTES:
+            raise ValueError(
+                f"Arquivo '{name}' muito grande. Tamanho máximo permitido: {MAX_FILE_SIZE_BYTES / 1024 / 1024:.1f} MB, "
+                f"Tamanho do arquivo: {len(content) / 1024 / 1024:.1f} MB"
+            )
     
     # Cenário 1: Múltiplos arquivos (3 CSVs separados)
     if len(files_data) > 1:

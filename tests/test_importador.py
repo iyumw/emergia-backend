@@ -4,10 +4,6 @@ import json
 from io import BytesIO
 from app.infrastructure.adapters.importador import _combine_into_result, _parse_edges_section, _parse_nodes_section, _parse_sources_section, build_from_xlsx, build_graph_data_from_csvs, build_graph_data_from_uploads
 
-class TestExcelImporter:
-    def test_import_valid_xlsx(self, calculator):
-        pass
-
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. Importer unit tests
 # ─────────────────────────────────────────────────────────────────────────────
@@ -143,6 +139,41 @@ class TestImporter:
         with pytest.raises(ValueError, match="O grafo precisa de pelo menos um nó"):
             _combine_into_result(nodes_csv="", sources_csv="", edges_csv="")
 
+    # ─── Testes de validação de tamanho máximo de arquivo ───────────────────
+
+    def test_file_exceeds_max_size_rejected(self):
+        """Testa se MAX_FILE_SIZE_BYTES rejeita qualquer arquivo acima do limite."""
+        from app.infrastructure.adapters.importador import MAX_FILE_SIZE_BYTES
+        
+        large_label = "X" * (MAX_FILE_SIZE_BYTES + 1000000)
+        oversized_json = json.dumps({
+            "nodes": [{"id": "P1", "label": large_label, "type": "process"}],
+            "edges": []
+        }).encode("utf-8")
+        
+        with pytest.raises(ValueError, match="muito grande"):
+            build_graph_data_from_uploads({"diagrama.json": oversized_json})
+
+    def test_json_within_max_size_accepted(self):
+        """Testa que arquivo JSON dentro do limite é aceito."""
+        json_payload = {
+            "nodes": [{"id": "P1", "label": "Processo", "type": "process", "is_multi_output": False}],
+            "edges": []
+        }
+        result = build_graph_data_from_uploads({"diagrama.json": json.dumps(json_payload).encode("utf-8")})
+        assert len(result.nodes) == 1
+
+    def test_xlsx_within_max_size_accepted(self):
+        """Testa que arquivo XLSX dentro do limite é aceito."""
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            pd.DataFrame([{"id": "P1", "label": "Processo", "is_multi_output": False}]).to_excel(
+                writer, sheet_name='nodes', index=False)
+            pd.DataFrame([{"source": "P1", "target": "P1", "amount": 100}]).to_excel(
+                writer, sheet_name='edges', index=False)
+        result = build_graph_data_from_uploads({"modelo.xlsx": output.getvalue()})
+        assert len(result.nodes) == 1
+
 class TestExcelImporter:
     def test_import_valid_xlsx(self, calculator):
         # Criando um Excel em memória para testar
@@ -167,4 +198,5 @@ class TestExcelImporter:
         
         assert result["total_emergy"] == 500.0
         assert len(ir.nodes) == 2
+
     

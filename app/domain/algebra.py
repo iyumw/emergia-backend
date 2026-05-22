@@ -95,14 +95,12 @@ class EmergyAlgebra:
             for parent_id in process_parents:
                 parent_emergy = self.calculate(parent_id)
                 
-                # Otimização 1: Acessa o dicionário de atributos diretamente
                 parent_node = self.graph.nodes[parent_id]
                 is_multi_output = parent_node.get("is_multi_output", False)
                 
                 if is_multi_output:
                     contributions.append(self._apply_co_product(parent_emergy))
                 else:
-                    # Otimização 2: Usa out_degree em vez de instanciar list(successors)
                     parent_out_degree = self.graph.out_degree(parent_id)
                     
                     if parent_out_degree > 1:
@@ -131,16 +129,13 @@ class EmergyAlgebra:
             
         visited.add(nid)
         
-        # Mapeia os predecessores diretos
         anc = set(self.graph.predecessors(nid))
         
-        # Copia a lista para iterar com segurança e busca recursivamente
         for p in list(anc):
             anc |= self._get_node_ancestors(p, visited)
             
         visited.remove(nid)
         
-        # Guarda no cache global da instância
         self._ancestors_cache[nid] = anc
         return anc
 
@@ -151,7 +146,6 @@ class EmergyAlgebra:
         if len(parents) < 2:
             return sum(contributions)
 
-        # OTIMIZAÇÃO: Usa o método da classe com cache integrado
         lineages = [self._get_node_ancestors(p) for p in parents]
 
         has_common_origin = False

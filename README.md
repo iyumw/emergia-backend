@@ -1,15 +1,17 @@
 # Emergia Backend
 
-API FastAPI para cálculo de emergia baseada na teoria de H.T. Odum.
+Backend do projeto **ESCALE** - Sistema de cálculo e análise de emergia com visualização ambiental.
 
 ## 📋 Descrição
 
-Motor de cálculo emergético que recebe a descrição de um sistema (fontes, processos e fluxos) e distribui a "emergia" entre os nós seguindo as regras de álgebra emergética de Odum.
+Motor de cálculo emergético que recebe a descrição de um sistema (fontes, processos e fluxos) e distribui a "emergia" entre os nós seguindo as regras de álgebra emergética de Odum. Este projeto foi desenvolvido como trabalho acadêmico com foco em modelagem de fluxos de emergia, visualização de grafos ambientais e manipulação de inventários de ciclo de vida (LCI).
 
 ## ✨ Características
 
+- **Modelagem de fluxos de emergia** baseada em teoria estabelecida (H.T. Odum)
+- **Visualização de grafos ambientais** para representação de processos e fluxos energéticos
+- **Manipulação de inventários de ciclo de vida (LCI)** para análise de sustentabilidade
 - **API REST** documentada com Swagger/OpenAPI
-- **Cálculo de Emergia** baseado em teoria estabelecida
 - **Importação de CSV** para dados em lote
 - **Arquitetura em camadas**: Domain, Application, Infrastructure
 - **Testes automatizados** com cobertura mínima de 80%
@@ -29,7 +31,6 @@ emergia-backend/
 │   │   ├── __init__.py
 │   │   ├── entities.py         # Modelos: Processo, Fluxo, Grafo, etc
 │   │   ├── algebra.py          # Regras de cálculo emergético
-│   │   ├── graph_store.py      # Armazenamento e manipulação do grafo
 │   │   ├── glossary.py         # Dicionário de termos
 │   │   └── exceptions.py       # Exceções customizadas
 │   └── infrastructure/         # Comunicação externa (API, Arquivos)
@@ -39,7 +40,8 @@ emergia-backend/
 │       │   └── routes.py       # Endpoints REST
 │       └── adapters/
 │           ├── __init__.py
-│           └── importador.py   # Leitura e validação de arquivos importados
+│           ├── graph_store.py  # Armazenamento e visualização de grafos
+│           └── importador.py   # Leitura e validação de LCI e outros arquivos
 ├── tests/
 │   ├── __init__.py
 │   ├── conftest.py             # Configuração do pytest
@@ -61,7 +63,7 @@ emergia-backend/
 
 ```bash
 git clone <repositorio>
-cd emergia_backend
+cd emergia-backend
 ```
 
 ### 2. Criar e ativar ambiente virtual
@@ -101,35 +103,105 @@ Documentação interativa (Swagger): `http://localhost:8000/docs`
 
 ## 🔌 Endpoints
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/` | Health check |
-| POST | `/api/v1/calculate` | Calcula emergia a partir de JSON |
-| POST | `/api/v1/import` | Importa e calcula emergia a partir de CSV |
+### 1. **POST `/calculate`** - Cálculo de Emergia a partir de JSON
 
-### Exemplo de payload para `/api/v1/calculate`
+Recebe nós e arestas como JSON e retorna a emergia total do sistema.
 
+**Parâmetros do Request Body:**
 ```json
 {
-  "sources": [
+  "nodes": [
     {
-      "id": "SUN",
-      "label": "Solar",
+      "id": "SUN_01",
+      "label": "Solar Energy",
+      "type": "source",
       "uev": 1.0,
-      "categoria": "renovavel",
-      "quantidade": 3500000.0
-    }
+      "category": "renewable",
+      "amount": 3500000.0
+    },
+    { "id": "P1", "label": "Plantation", "type": "process" },
+    { "id": "P2", "label": "Harvest", "type": "process" }
   ],
-  "processes": [
-    { "id": "P1", "label": "Fotossíntese" },
-    { "id": "P2", "label": "Crescimento" }
-  ],
-  "flows": [
-    { "origem": "SUN", "destino": "P1", "quantidade": 3500000.0 },
-    { "origem": "P1", "destino": "P2", "quantidade": 1000.0 }
+  "edges": [
+    { "source": "SUN_01", "target": "P1", "amount": 3500000.0, "unit": "sej" },
+    { "source": "P1", "target": "P2", "amount": 1000.0, "unit": "kg" }
   ]
 }
 ```
+
+**Resposta:** Objeto com resultado do cálculo emergético.
+
+---
+
+### 2. **POST `/import`** - Importação de Dados (CSV, JSON, XLSX)
+
+Importa dados a partir de arquivos e realiza o cálculo automaticamente.
+
+**Entrada:** 
+- Um arquivo (.json, .xlsx) ou
+- Três arquivos CSV separados (nodes, sources, edges)
+
+**Resposta:**
+```json
+{
+  "graph_id": "abc123def456",
+  "expires_in_seconds": 3600
+}
+```
+
+---
+
+### 3. **GET `/graph/{graph_id}`** - Recuperar Grafo
+
+Retorna o grafo completo e os resultados dos cálculos para um ID específico.
+Grafos expiram após 1 hora e são removidos automaticamente.
+
+**Resposta:**
+```json
+{
+  "graph_id": "abc123def456",
+  "created_at": "2024-05-22T10:30:00Z",
+  "nodes": [...],
+  "edges": [...],
+  "result": {
+    "total_emergy": 4500000.0,
+    "unit": "sej",
+    "stats": {
+      "nodes_count": 3,
+      "edges_count": 2,
+      "processing_time_ms": 45
+    }
+  }
+}
+```
+
+---
+
+### 4. **POST `/export/pdf`** - Exportar Relatório em PDF
+
+Gera um PDF customizável incluindo a captura visual do grafo.
+
+**Parâmetros do Request Body:**
+```json
+{
+  "graph_id": "abc123def456",
+  "config": {
+    "title": "Análise de Sistema de Silagem",
+    "graph_image": "data:image/png;base64,iVBORw0KGgo...",
+    "show_stats": true
+  }
+}
+```
+
+**Resposta:** PDF para download.
+
+---
+
+### 5. **GET `/glossary`** - Glossário de Termos
+
+Retorna o dicionário de conceitos de emergia e referências metodológicas.
+
+**Resposta:** Objeto com definições e termos-chave da análise emergética.
 
 ## 🧪 Executar Testes
 
@@ -142,27 +214,6 @@ pytest tests/test_calculator.py -v
 
 # Com saída detalhada
 pytest tests/ -vv --tb=short
-```
-
-## 📦 Dependências Principais
-
-Veja `requirements.txt` para a lista completa. Principais:
-
-- **FastAPI**: Framework web assíncrono
-- **Pydantic**: Validação de dados e serialização
-- **pytest**: Framework de testes
-- **pytest-cov**: Cobertura de testes
-
-## ⚙️ Configuração
-
-### CORS em Desenvolvimento
-
-Por padrão, CORS permite requisições de `http://localhost:4200` (Angular) e `http://localhost:3000` (Node).
-
-Para alterar, edite `app/main.py` ou defina a variável de ambiente `ALLOWED_ORIGINS`:
-
-```bash
-set ALLOWED_ORIGINS=http://localhost:3000,http://meuapp.local
 ```
 
 ## 📝 Notas Importantes

@@ -2,10 +2,6 @@ import pytest
 from app.domain.entities import GraphData
 from tests.helpers import _source, _process, _edge
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 1. Odum's algebra rules
-# ─────────────────────────────────────────────────────────────────────────────
-
 class TestOdumRules:
 
     def test_rule1_source_emergy_goes_to_output(self, calculator):

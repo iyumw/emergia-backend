@@ -1,7 +1,7 @@
 import pytest
 import time
-from app.domain.graph_store import get_graph, save_graph
-from app.domain.graph_store import (
+from app.infrastructure.adapters.graph_store import get_graph, save_graph
+from app.infrastructure.adapters.graph_store import (
     save_graph,
     get_graph,
     SESSION_TTL_SECONDS,
@@ -33,7 +33,7 @@ class TestGraphStore:
         result = {"total_emergy": 100.0, "unit": "sej"}
         gid = save_graph(nodes, edges, result)
 
-        import app.domain.graph_store as store_mod
+        import app.infrastructure.adapters.graph_store as store_mod
         past = time.time() - SESSION_TTL_SECONDS - 1
         store_mod._store[gid]["created_at"] = past
 

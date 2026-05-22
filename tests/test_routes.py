@@ -76,7 +76,7 @@ def test_get_graph_by_id_not_found():
 def test_get_graph_by_id_success_via_store_injection():
     """Força a execução de todas as linhas de sucesso internas do GET /api/graph/{graph_id}."""
     # Importamos o dicionário em memória usado pelo backend para injetar um estado válido direto nele
-    from app.domain.graph_store import _store  
+    from app.infrastructure.adapters.graph_store import _store  
     
     graph_id = "session-mock-cobertura"
     

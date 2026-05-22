@@ -1,4 +1,3 @@
-# tests/helpers.py
 from app.domain.entities import Node, Edge
 
 def _source(label="Sun", uev=1.0, amount=100, node_id=None):

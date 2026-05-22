@@ -4,10 +4,6 @@ import json
 from io import BytesIO
 from app.infrastructure.adapters.importador import _combine_into_result, _parse_edges_section, _parse_nodes_section, _parse_sources_section, build_from_xlsx, build_graph_data_from_csvs, build_graph_data_from_uploads
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 5. Importer unit tests
-# ─────────────────────────────────────────────────────────────────────────────
-
 class TestImporter:
 
     def test_nodes_section_auto_generates_id(self):
@@ -34,7 +30,7 @@ class TestImporter:
         # Cenário B: ID Ausente (força a execução de _generate_id())
         csv_no_id = "label,uev,category,amount\nSol,1.0,R,500"
         nodes_no_id = _parse_sources_section(csv_no_id)
-        assert len(nodes_no_id[0].id) == 8  # Prefixo do UUID gerado tem 8 caracteres
+        assert len(nodes_no_id[0].id) == 8
 
     def test_parse_nodes_with_and_without_id(self):
         csv_no_id = "label,is_multi_output\nProcesso Sem ID,false"

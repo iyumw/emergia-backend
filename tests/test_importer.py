@@ -2,7 +2,7 @@ import pytest
 import pandas as pd
 import json
 from io import BytesIO
-from app.infrastructure.adapters.importador import _combine_into_result, _parse_edges_section, _parse_nodes_section, _parse_sources_section, build_from_xlsx, build_graph_data_from_csvs, build_graph_data_from_uploads
+from app.infrastructure.adapters.importer import _combine_into_result, _parse_edges_section, _parse_nodes_section, _parse_sources_section, build_from_xlsx, build_graph_data_from_csvs, build_graph_data_from_uploads
 
 class TestImporter:
 
@@ -139,7 +139,7 @@ class TestImporter:
 
     def test_file_exceeds_max_size_rejected(self):
         """Testa se MAX_FILE_SIZE_BYTES rejeita qualquer arquivo acima do limite."""
-        from app.infrastructure.adapters.importador import MAX_FILE_SIZE_BYTES
+        from app.infrastructure.adapters.importer import MAX_FILE_SIZE_BYTES
         
         large_label = "X" * (MAX_FILE_SIZE_BYTES + 1000000)
         oversized_json = json.dumps({

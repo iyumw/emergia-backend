@@ -1,12 +1,6 @@
 import pytest
 import time
-from app.infrastructure.adapters.graph_store import get_graph, save_graph
-from app.infrastructure.adapters.graph_store import (
-    save_graph,
-    get_graph,
-    SESSION_TTL_SECONDS,
-    _store,
-)
+from app.infrastructure.adapters.graph_store import get_graph, save_graph, SESSION_TTL_SECONDS, _store
 
 
 class TestGraphStore:

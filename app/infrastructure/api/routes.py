@@ -6,16 +6,14 @@ EmergyCalculator is injected via FastAPI Depends (dependency inversion).
 import base64
 import io
 from typing import Annotated, List, Any
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Query
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from fastapi.responses import StreamingResponse
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from reportlab.lib.pagesizes import A4
 
-from app.domain.entities import GraphData
 from app.application.emergy_calculator import EmergyCalculator
-from app.domain.exceptions import EmergyError, InvalidGraphError, NodeNotFoundError
-from app.infrastructure.adapters.importador import build_graph_data_from_uploads
+from app.infrastructure.adapters.importer import build_graph_data_from_uploads
 from app.domain.glossary import get_glossary
 from app.infrastructure.adapters.graph_store import save_graph, get_graph
 
@@ -27,55 +25,6 @@ router = APIRouter()
 def get_calculator() -> EmergyCalculator:
     """Factory for EmergyCalculator injection via Depends."""
     return EmergyCalculator()
-
-
-# ── Calculate from JSON ───────────────────────────────────────────────────────
-
-
-@router.post("/calculate")
-async def calculate_emergy(
-    data: GraphData,
-    calculator: Annotated[EmergyCalculator, Depends(get_calculator)],
-):
-    """
-    Receives nodes and edges as JSON and returns the total emergy.
-
-    Node `id` is **optional** — auto-generated when omitted.
-
-    Example payload:
-
-        {
-          "nodes": [
-            {
-              "id": "SUN_01",
-              "label": "Solar Energy",
-              "type": "source",
-              "uev": 1.0,
-              "category": "renewable",
-              "amount": 3500000.0
-            },
-            { "id": "P1", "label": "Plantation", "type": "process" },
-            { "id": "P2", "label": "Harvest",    "type": "process" }
-          ],
-          "edges": [
-            { "source": "SUN_01", "target": "P1", "amount": 3500000.0, "unit": "sej" },
-            { "source": "P1",     "target": "P2", "amount": 1000.0,    "unit": "kg"  }
-          ]
-        }
-    """
-    try:
-        result = calculator.calculate(data)
-        return result
-    except (NodeNotFoundError, InvalidGraphError) as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except EmergyError as e:
-        raise HTTPException(
-            status_code=status.HTTP_420_METHOD_FAILURE,
-            detail=str(e)
-        )
 
 
 # ── Import from uploaded files ─────────────────────────────────────────────

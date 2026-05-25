@@ -1,4 +1,3 @@
-import pytest
 from app.domain.entities import GraphData
 from tests.helpers import _source, _process, _edge
 
